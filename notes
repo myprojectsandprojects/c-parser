@@ -1,0 +1,250 @@
+
+WHAT WE WANT:
+---
+structs, enums, unions, functions(definitions, declarations), global vars, macros?:
+	name
+	definition (as range?)
+
+typedefs:
+	new type name,
+	original type (struct, enum, union, builtin, typedef, pointer)
+
+
+---
+
+TYPE DEFINITION:
+	typedef
+	struct, enum, union
+
+VARIABLE DECLARATION/DEFINITION
+FUNCTION DECLARATION/DEFINITION
+
+<type>;
+
+each iteration -> 1 statement (or something)
+while(have tokens left) {
+	if(STATIC, STRUCT, ENUM, UNION, CONST, [anything types have: <user type>, void, float, int, unsigned, ...]) {
+		statement can begin with 'static', this might be of interest to us
+
+		get the type, it could be a definition of a new tagged type or an existing type
+		struct, enum, union can define new tagged types:
+			struct newTaggedType {...fields...}
+		but they could also be already existing ones:
+			enum oldTaggedType
+		int types can be complicated:
+			unsigned long int
+		also 'const' can be anywhere there (including before and after):
+			unsigned long const int
+		and some types are simple:
+			float
+			someUsersType
+
+		once we have a type followed by ';', we are done, it was a tagged type definition (struct, enum, union)
+
+		if we are not done at this point, we have either a
+			function definition/declaration
+			any number of variable declarations/definitions
+		both cases
+			we can have any number of '*' (pointer, pointer to pointer, ...)
+			then we expect a single identifier (function name or a variable name)
+
+		'(' is a beginning of an argument list, hence a function
+			we look for ')' and if follwed by
+				';' -> function declaration
+				'{' -> function definition
+					find matching '}', ignore body
+		otherwise
+			if we find '[', its an array, it could be any dimensional ([100][max_elements][])
+			if not, it's just a regular variable
+			in any case, we can either find
+				';' -> variable or array declaration -> we are done
+				',' -> was variable declaration -> parse next variable -> *... VarName [...]...
+				'=' -> variable definition -> some kind of expression should follow
+					and then if we find ';' -> we are done
+					',' -> parse next variable -> *... VarName [...]...
+	}
+
+	else if(TYPEDEF) {
+		handle type definitions separately
+		get the old type
+		can have multiple new , separated type names
+	}
+
+	ignore other tokens (preprocessor directive, comments, operators)
+}
+
+int GetStructDefinition(int Index)
+int GetEnumDefinition(int Index)
+int GetUnionDefinition(int Index)
+
+---
+BUILTIN
+	float, double
+	char, short, int, long
+	signed, unsigned
+	const
+	void
+
+	struct, enum, union
+
+USERS NAMES
+
+float *MyThing[];
+short unsigned int const * const MyThing[];
+const struct myThing *TheThing[];
+const struct myThing {...} *TheThing[];
+const struct {...} *TheThing[];
+
+
+VarDecl {name, range}
+...
+
+DefsDecls {
+	VarDecls,
+	VarDefs,
+	FuncDecls,
+	FuncDefs,
+	Structs,
+	Enums,
+	Unions,
+	Types
+}
+
+while(Index < Count) {
+	// do static ?
+	// do type
+	Index = GetType(Index, DefsDecls)
+
+	// do stars_and_consts_before_name
+	while Token[Index] == '*' || CONST {
+		Index += 1
+	}
+
+	// is_function_or_var
+	if Token[Index] == '(' {
+		// function
+		find matching ')'
+		if(Tokens[Index] == ';') {
+			// decl
+		} else if Tokens[Index] == '{' {
+			// def
+			find matching '}'
+		}
+	} else if Token[Index] == USERS_NAME {
+		// do brackets_after_name
+		while Token[Index] == '[' || ']' || NUMBER || USERS_NAME {
+			Index += 1
+		}
+		if(Tokens[Index] == ';') {
+			// was decl, done
+		} else if Tokens[Index] == ',' {
+			// was decl, do another
+		} else if Tokens[Index] == '=' {
+			// def
+			do {
+				Index += 1
+			} while Tokens[Index] != ';' and != ','
+			if Tokens[Index] == ';' {
+				// def, done
+			} else if Tokens[Index] == ',' {
+				// def, do another
+			} else {
+				fail
+			}
+		}
+	} else {
+		fail
+	}
+}
+
+int GetType(int _Index, DefsDecls) {
+	Index = _Index
+	while TypeKeyword(Token[Index]) || Token[Index] == USERS_NAME {
+		if Tokens[Index] == STRUCT | ENUM | UNION {
+			structEnumUnionName Name
+			Index = HandleStructEnumUnionKeyword(Index, DefsDecls)
+			if(Name) {
+				type definition
+			}
+		}
+		Index += 1
+	}
+
+	return Index
+}
+
+int HandleStructEnumUnionKeyword(int Index, DefsDecls) {
+	assert(Tokens[Index] == STRUCT | ENUM | UNION)
+
+	Tokens += 1
+	if(Tokens[Index] == USERS_NAME) {
+		// put name to 'DefsDecls'
+	}
+
+	Tokens += 1
+	if(Tokens[Index] != '{') {
+		assert(WeHaveAName)
+	} else {
+		go to matching '}'
+	}
+
+	return Index
+}
+
+---
+
+var defs/decls statement:
+	do_type
+
+	loop:
+		if '(' -> function pointer (must be followed by '*'?)
+			(
+			do_stars_consts_before
+			get_name
+			do_brackets_afterwards
+			)
+	
+			do_	find_matching_()
+	
+			if(;) break
+			if(,) continue
+			if(=)
+				do_initializer
+				if(;) break
+				if(,) continue
+
+		else if '*', const, users_name -> regular variable
+			do_stars_consts_before
+			get_name
+			do_brackets_afterwards
+	
+			if(;) break
+			if(,) continue
+			if(=)
+				do_initializer
+				if(;) break
+				if(,) continue
+		else -> error
+
+typedef statement:
+	do_type
+
+	loop:
+		do_stars_consts_before
+		get_name
+		do_brackets_afterwards
+
+		if(;) break
+		if(,) continue
+
+func defs/decls statement:
+	do_type
+
+	do_stars_consts_before
+	get_name
+	find_matching_()
+
+	if(;) declaration
+	if({) definition
+		find_matching_{}
+
